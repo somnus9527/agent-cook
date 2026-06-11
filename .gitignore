@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.checkpoints
+*.log
+
+# 检查点/追踪默认落盘目录（见 src/collection/*，可在 config.ts 改）
+.agent-cook/

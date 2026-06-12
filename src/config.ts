@@ -10,8 +10,6 @@ export interface AgentConfig {
   model: string;
   /** 单个 run 的最大循环步数 —— 防死循环兜底（04 §工程要点）。 */
   maxSteps: number;
-  /** 默认编排模式（16 §4；入门用 react）。 */
-  mode: 'react' | 'plan-execute';
   /** 检查点/追踪落盘根目录（17 §6）。 */
   dataDir: string;
   /** 传给底层模型的可选参数（temperature 等）。 */
@@ -24,7 +22,6 @@ export const CONFIG: AgentConfig = {
   model:
     process.env.AGENT_MODEL ?? (process.env.AGENT_PROVIDER === 'kimi' ? 'kimi-k2.5' : 'llama3.1'),
   maxSteps: Number(process.env.AGENT_MAX_STEPS ?? 12),
-  mode: (process.env.AGENT_MODE as AgentConfig['mode']) ?? 'react',
   dataDir: process.env.AGENT_DATA_DIR ?? '.agent-cook',
   modelOptions: {
     // TODO: temperature / num_ctx 等，按需补（Kimi 的取值范围与 OpenAI 不同，见 13 §6）

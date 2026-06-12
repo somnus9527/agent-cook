@@ -169,8 +169,12 @@ export interface Deps {
   emit(event: AgentEvent): void;
   /** 检查点 store：每 step 存档 / resume 时加载（17 §6.2）。 */
   store: CheckpointStore;
-  /** 注入给模型的工具 schema 列表（与 dispatchTool 的 registry 对应；callModel 要用）。 */
-  toolSchemas: ToolSchema[];
+  /**
+   * 本轮可用工具的 schema —— **随 state 动态**（不是启动时定死的固定数组）。
+   * 激活的 Skill、动态接入的 MCP 工具都在这里体现（见 knowledge/20、15）。
+   * 实现通常读"当前 registry"；state 参数留给"按激活 skill 做渐进式披露/门控"用。
+   */
+  getToolSchemas(state: AgentState): ToolSchema[];
 }
 
 /** runAgent 的返回（口子 E：输入 → { output, trace }）。 */

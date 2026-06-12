@@ -23,7 +23,7 @@ export function createReActLoop(config: AgentConfig): LoopRunner {
 
         // ── 口子 A：调模型 ──
         deps.emit({ type: 'model_call', step: state.step });
-        const res = await deps.callModel({ messages, tools: deps.toolSchemas });
+        const res = await deps.callModel({ messages, tools: deps.getToolSchemas(state) });
         deps.emit({
           type: 'model_result',
           step: state.step,

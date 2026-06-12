@@ -46,6 +46,41 @@
 
 > 这与 [16 §5.2](16-runtime-layering-and-loop.md) 呼应：让模型"自决何时规划/调工具"，靠的就是 system prompt 的常驻指令 + 工具描述里的"何时用"。模型不会自发觉悟，它在**对照你写的指令**做分类。
 
+## 3.5 ACI 与 Poka-yoke：把工具设计成"防错的"
+
+**核心概念**：
+- **ACI（Agent-Computer Interface，智能体-计算机接口）**：Agent 与工具/环境之间的接口。`Building Effective Agents` 把它和给人用的 HCI/UI 并列——**你要像打磨人类 UI 一样打磨 ACI**，因为工具好不好用直接决定模型用得对不对。
+- **Poka-yoke（防呆/防错）**：源自制造业，把工具**设计成难以用错**，而不是寄望模型每次都用对。
+
+**使用场景**：模型频繁把工具用错——参数填错、路径写错、该传的没传、格式不对。
+
+**为什么需要**：模型是概率的，接口有歧义它就有概率出错。与其在 prompt 里反复叮嘱，不如**改接口让错误用法根本表达不出来**——这是更便宜、更稳的杠杆（呼应"地基是最大杠杆"）。
+
+**底层逻辑 / 具体手法**：
+- **强制无歧义参数**：例如要求**绝对路径**而非相对路径，模型就不会因 cwd 不明而填错（Poka-yoke 的经典例子）。
+- **给模型"思考空间"**：工具/输出格式留出让模型先推理再给结论的位置（如先 reasoning 字段再 answer），别逼它一步吐结果。
+- **贴合自然文本格式**：用模型训练里**见得多**的格式（Markdown、标准 JSON），少用它没怎么见过的私有 DSL/转义繁琐格式——越贴近训练分布越少出错。
+- **命名/描述消歧**：见 §3。
+
+**设计 demo**：
+```ts
+// ❌ 易错：相对路径 + 含糊参数
+{ name: 'read', parameters: { path: { type: 'string' } } }       // 模型可能填相对路径、填错基准
+
+// ✅ 防错：强制绝对路径 + 明确约束写进 schema
+{
+  name: 'read_file',
+  description: '读取一个文件。path 必须是绝对路径（以 / 开头）。',
+  parameters: {
+    type: 'object',
+    properties: { path: { type: 'string', description: '绝对路径，如 /repo/src/a.ts' } },
+    required: ['path'],
+  },
+}
+```
+
+**参考**：[Building Effective Agents · Appendix 2: Prompt engineering your tools](https://www.anthropic.com/engineering/building-effective-agents)。
+
 ## 4. Few-shot 示例：用例子定形状
 
 当"用文字描述格式/风格"说不清时，直接给 1–3 个输入→输出的范例，模型会模仿。适合：固定输出格式、特定语气、边界 case 处理。

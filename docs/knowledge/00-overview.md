@@ -23,7 +23,7 @@
 
 > 关键认知（贯穿全库）：LLM 是**无状态的概率预测器**，本质不确定。能力层让它"能干活"，可靠性层把"压不到零的不确定性"圈进可接受边界——两者同等重要。
 
-## 二、阅读地图（19 篇按层归类）
+## 二、阅读地图（21 篇按层归类）
 
 ### 地基
 | 篇 | 内容 |
@@ -46,6 +46,7 @@
 |---|---|
 | [03 Tool / Function Calling 原理](03-tool-calling.md) | 模型决策/你执行/回填闭环 + 跨供应商 |
 | [15 MCP 讲透](15-mcp-explained.md) | 工具/数据/模版的标准化接入 |
+| [20 Skill（技能）](20-skills.md) | 指令+工具+资源的按需加载单元；渐进式披露 |
 
 ### 能力层 · ③ 循环 / 编排
 | 篇 | 内容 |
@@ -53,6 +54,7 @@
 | [04 Agent Loop 与 ReAct](04-agent-loop-react.md) | 那个 while 循环 |
 | [05 Plan-Execute-Replan](05-plan-execute-replan.md) | 先规划再执行 |
 | [09 结构化输出](09-structured-output.md) | 让模型稳定吐 JSON（编排的粘合剂） |
+| [21 工作流 vs 智能体：编排模式菜单](21-workflow-patterns.md) | 工作流 vs Agent + 5 模式；ReAct/Plan-Execute 的上位地图 |
 | [16 运行时分层与 Agent Loop 编排](16-runtime-layering-and-loop.md) | 分层、loop 两分支、规划接入、resume 路径 |
 | [17 四类收集：Context/Memory/Checkpoint/Trace](17-collection-context-memory-trace-checkpoint.md) | 谁收集什么/谁用/怎么用 + checkpoint 数据模型 + 术语表 |
 

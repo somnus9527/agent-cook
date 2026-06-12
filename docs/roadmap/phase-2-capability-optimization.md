@@ -108,6 +108,19 @@
 **达标标准**：经典注入样本（"忽略以上指令…"出现在工具结果/文档里）不能改变 Agent 行为；危险操作有权限边界。
 **参考**：knowledge/10；[OWASP Top 10 for LLM Apps](https://owasp.org/www-project-top-10-for-large-language-model-applications/)。
 
+### E3. Skill（技能）支持
+**理由**：能力多了之后，把"指令+脚本+资源"打包成按需加载的单元，比堆一堆零散工具+长 system prompt 更可维护、更省上下文。
+**前置改造（已完成）**：`Deps.toolSchemas` 已重构为 `getToolSchemas(state)`（动态读 registry），skill 激活后新增的工具能被模型看到。
+**方向**：
+| 方案 | 优 | 劣 |
+|---|---|---|
+| 不做（内置工具 + 好 prompt） | 最简 | 能力多时 prompt 臃肿、上下文浪费 |
+| `use_skill` 工具（模型决定激活） | 直接、走口子 B | 弱模型激活判定可能不准 |
+| 自动召回（buildContext 语义匹配激活，RAG 式） | 不依赖模型自觉 | 要检索逻辑 |
+关键是**渐进式披露**（描述常驻、正文/工具按需载入）+ 激活态入 `AgentState`（resume）+ skill 脚本按不可信代码处理（E2/10）。新增一个 SkillRegistry/SkillLoader 模块喂口子 B+C，不开新口子。
+**达标标准**：放一个带 `SKILL.md` + 脚本的 skill，平时只占"名字+描述"；模型在相关任务激活它后，其指令进上下文、其工具可调用；resume 后激活态保留。
+**参考**：knowledge/20；[Anthropic Agent Skills 文档](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/overview)、[Equipping agents with Agent Skills](https://www.anthropic.com/engineering/agent-skills)。
+
 ---
 
 ## F. 编排
@@ -122,8 +135,9 @@
 | 独立 Plan-Execute-Replan 引擎 | 全局视野强、可纠偏 | 调用多、状态管理复杂 |
 | ReWOO/LLMCompiler（可并行任务图） | 省调用、提并发 | 实现重 |
 落点：`loop/planExecuteLoop.ts`，**每步执行器复用 ReActLoop**（嵌套，不是平行）。
+**何时升级到 Plan-Execute**：不靠静态配置，由 `loop/manager.ts` 的 `route(state)` 在进 loop 前按需判定——启发式 / LLM 分类器 / 动态升级四档，详见 knowledge/16 §5.3。默认恒 ReAct（plan-as-tool）。
 **达标标准**：一个明确的多步任务，Plan-Execute 版比纯 ReAct 更少绕路/更稳完成（用 trace 对比步数与成功率）。
-**参考**：knowledge/05、16 §4/§5；[ReAct 论文](https://arxiv.org/abs/2210.03629)、[LangGraph](https://docs.langchain.com/oss/python/langgraph/overview)。
+**参考**：knowledge/05、16 §4/§5.3；[ReAct 论文](https://arxiv.org/abs/2210.03629)、[LangGraph](https://docs.langchain.com/oss/python/langgraph/overview)。
 
 ### F2. 多 Agent（Agent-as-tool）
 **理由**：复杂域里"一个专精 Agent 当另一个的工具"能分治。

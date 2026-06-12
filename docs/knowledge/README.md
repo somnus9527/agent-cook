@@ -2,7 +2,7 @@
 
 配合 [`../plan/agent-learning-plan.md`](../plan/agent-learning-plan.md) 使用。每篇聚焦一个概念，尽量给原理 + 可运行的最小示例（基于本地 Ollama，无框架）。每篇末尾有「延伸阅读」指向更深的优秀文章。
 
-> 🗺️ **先读 [`00-overview.md`](00-overview.md)** —— 完整心智模型（分层）、19 篇阅读地图、精选外部资源、未覆盖的进阶主题入口。
+> 🗺️ **先读 [`00-overview.md`](00-overview.md)** —— 完整心智模型（分层）、21 篇阅读地图、精选外部资源、未覆盖的进阶主题入口。
 
 | # | 知识点 | 对应阶段 | 一句话 |
 |---|---|---|---|
@@ -26,5 +26,7 @@
 | 17 | [四类收集：Context/Memory/Checkpoint/Trace](17-collection-context-memory-trace-checkpoint.md) | 阶段 2–3 横切 | 各收集什么/谁用/怎么用 + checkpoint 数据模型 + 术语表 |
 | 18 | [Prompt / 指令设计](18-prompt-and-instruction-design.md) | 地基（阶段 1–2） | system prompt 结构、工具描述怎么写、指令优先级、迭代法 |
 | 19 | [评估（Evaluation）](19-evaluation.md) | 可靠性（阶段 2–3） | 评什么/怎么评、LLM-as-judge、评估集来自 trace、回归 |
+| 20 | [Skill（技能）](20-skills.md) | 阶段 3（进阶） | 指令+工具+资源的按需加载单元；渐进式披露；落到口子 B+C |
+| 21 | [工作流 vs 智能体：编排模式菜单](21-workflow-patterns.md) | 阶段 2–3 | prompt chaining / routing / parallelization / orchestrator-workers；先求简单 |
 
 > 阅读顺序建议按编号；02→03→04 是核心主线。**11 在动手写案例 1 前务必先读**——它决定你的骨架怎么搭。

@@ -144,9 +144,140 @@ agent-cli --resume <id>   → App 调 store.load(id) → 拿 state → 正常起
 
 `save`/`load` 由一个可注入的 `CheckpointStore` 收口（文件/SQLite/PG 可换），resume 是读它的一条代码路径。检查点存什么、event sourcing / replay / 幂等等细节，全在 [17](17-collection-context-memory-trace-checkpoint.md)。
 
+## 7. 中断 / 取消（interrupt / cancel）
+
+用户按 Esc 想打断正在跑的 Agent。先分清**中断的三个对象**——难度和机制都不同：
+
+| 对象 | 中断什么 | 机制 |
+|---|---|---|
+| **① loop 本身** | 我们自己的循环 | 循环每轮顶部查 `signal.aborted`，置位就 break（源码是我们的，简单） |
+| **② 在途的 LLM 调用** | 正在等模型返回的那次请求 | **传输层 abort**，不是"模型功能"（见下） |
+| **③ 在途的工具执行** | 正跑的命令/IO | 把 signal 传给工具 / kill 子进程 |
+
+### 7.1 LLM 调用怎么中断——是传输层 abort，不是模型功能
+
+一次 LLM 调用本质是个（常为 SSE 流式的）HTTP 请求。中断它靠 Web 标准的 **`AbortController` / `AbortSignal`**：`fetch(url, { signal })`、OpenAI SDK 的 `create(params, { signal })`、Ollama 都支持。**模型没有"停下来把已想的给我"这种 API**——你切断的是连接与等待。
+
+两个反直觉点：
+- **abort 只保证"我不再等/不再收"，不保证服务端立刻停、也不保证不计费**（通常按已生成 token 计）。
+- **流式才有"已出半句"可用**，中断体验才顺滑；非流式中断 = 白跑一次。所以**中断与流式是一对**。
+
+### 7.2 Controller（触发） vs Signal（接收）——别混
+
+这是设计上最容易错的地方：
+
+- **`AbortController` = 触发端**：谁 `.abort()`。**集中存一份、在中断源触发，不要透传。**
+- **`AbortSignal`（`controller.signal`） = 接收端**：**必须交给要取消的操作**（provider 里的 fetch、工具的 IO）。fetch 消费的是 signal。
+
+所以问题不是"传不传 controller"（不传），而是"**signal 怎么到达 fetch 调用点**"。
+
+### 7.3 归属：Controller 在 App，TTY 只触发，signal 搭已有载体的车
+
+- **Controller 存在 App/Session**（它本就管 run 生命周期），**不能存在 RawTTY**——否则 provider（口子 A）要取 signal 就反向依赖了前端，破坏"前端可替换"分层（§1）。
+- **RawTTY 只负责"按 Esc → 喊一声 interrupt"**，由 App 去 `abort()`。
+- **signal 不是新加一堆参数**，而是挂在**本来就流到那里的对象**上：`ModelRequest.signal`（provider 取来喂 fetch）、`ToolContext.signal`（工具自觉响应）。几乎零额外管道。
+
+```
+TTY 按 Esc ──interrupt 事件──► App 持有的 AbortController.abort()
+                                      │ controller.signal
+   ┌──────────────┬───────────────────┴───────────────────┐
+loop 顶部查 aborted   ModelRequest.signal → provider → fetch    ToolContext.signal → 工具/子进程
+（①）                （②，传输层 abort）                       （③）
+```
+
+### 7.4 取消作用域树（cancellation scope tree）—— 不是一个 signal，是一棵
+
+你一开始没考虑到的，正是这点：真实 Agent 里**不是一个 controller，而是一棵取消作用域树**，结构与"运行的嵌套结构"同形：
+
+```
+run scope（App 每个 run 一个 controller） ← 用户按 Esc abort 这里
+   ├─ model call      （直接用 run signal）
+   ├─ tool A scope     = run signal ∪ 自己的超时        ← 超时只杀 A，不连累 run
+   ├─ tool B scope     = run signal ∪ 自己的超时
+   └─ sub-agent scope（将来）= run signal ∪ 子自己的预算  ← 父 abort 级联到子；子超时不连累父
+```
+
+规则两条：
+1. **父 abort → 级联到整棵子树**（打断 run，里面所有在途 model/tool 一起停）。
+2. **子 abort（如某工具超时）→ 只杀自己这棵，不波及父和兄弟**。
+
+一个"存在某处的全局 signal"表达不了这种**级联 + 局部隔离**；它要的是**每个操作一个、按父子组合**的 signal。这就是为什么 signal 要"挂在 request/context 上随操作流动"。
+
+### 7.5 工程实现：三个原语 + 一个派生帮手
+
+现代运行时（Node 20+/浏览器）给了三个标准原语，组合起来就够用，**不用手写监听器**：
+
+| 原语 | 作用 |
+|---|---|
+| `new AbortController()` | 一个可手动 `.abort(reason)` 的取消源 |
+| `AbortSignal.timeout(ms)` | 到点自动 abort 的 signal（做超时） |
+| `AbortSignal.any([...signals])` | 组合：**任一**来源 abort，结果就 abort（且内部用弱引用管理监听器，**不手动绑就不漏**） |
+
+**派生子作用域的帮手**（既跟随父、又能因自身原因独立取消）：
+
+```ts
+/** 从父 signal 派生一个子作用域：父 abort 会级联下来；也可因 local 原因独立取消。 */
+function deriveScope(parent: AbortSignal, ...extra: AbortSignal[]) {
+  const local = new AbortController();
+  return {
+    signal: AbortSignal.any([parent, local.signal, ...extra]), // 任一触发即取消
+    cancel: (reason?: unknown) => local.abort(reason),         // 只取消这棵子树
+  };
+}
+```
+
+**用 abort reason 区分"为什么停"**（关键工程细节）——同样是 aborted，处理可能完全不同：
+
+```ts
+controller.abort({ type: 'user-interrupt' });   // 用户打断 → 停下、回到等输入
+// vs 超时触发的 reason 是 DOMException('TimeoutError')
+if (signal.aborted) {
+  const why = signal.reason;   // 据此分流：用户打断 / 超时 / 预算耗尽 …
+}
+```
+
+**串到我们架构里**（落点示意，尚未实现）：
+
+```ts
+// App：每个 run 一个根 controller；TTY 的 Esc 触发
+const runCtl = new AbortController();
+frontend.onInterrupt(() => runCtl.abort({ type: 'user-interrupt' }));
+
+// loop：顶部主动 bail；把 run signal 放进 ModelRequest
+while (state.status === 'running' && state.step < cfg.maxSteps) {
+  runCtl.signal.throwIfAborted();                              // 步间中断点（①）
+  const res = await deps.callModel({ messages, tools, signal: runCtl.signal }); // ②
+  // …工具分支：给每个工具派生"run ∪ 超时"的子作用域（③）
+  for (const call of res.toolCalls ?? []) {
+    const { signal } = deriveScope(runCtl.signal, AbortSignal.timeout(cfg.toolTimeoutMs));
+    await deps.dispatchTool(call, { ...ctx, signal });
+  }
+}
+
+// provider（口子 A）：把 signal 喂给真正的请求
+await client.chat.completions.create(params, { signal: req.signal }); // OpenAI
+// fetch(url, { signal: req.signal })                                  // 通用
+
+// 收尾：把 AbortError 翻译成可恢复状态，而不是崩
+try { /* run */ } catch (e) {
+  if (runCtl.signal.aborted) state.status = 'interrupted';   // 回到等输入；"redirect"=append 新输入续跑
+  else throw e;
+}
+```
+
+要点回顾：
+- **Controller 一份在 App（根），按操作派生子作用域**；TTY 只触发，不持有 signal 消费方。
+- **signal 搭 `ModelRequest.signal`/`ToolContext.signal` 的车**到达 fetch 与工具。
+- **组合用 `AbortSignal.any` / `AbortSignal.timeout`**，别手写 `addEventListener`（要写就记得 `removeEventListener` 防泄漏）。
+- **`abort(reason)` 带类型化原因**，下游据此分流（用户打断 vs 超时 vs 预算）。
+
+> ⚠️ 取舍：若永远只有"单 run、单次在途调用、无并行/超时/子 Agent"，那"存一个 controller、abort 一下"也够，上面整棵树是为这些"多/组合"场景留的余量——与本项目一贯"留口子、按需长大"一致。
+>
+> 工程落点（尚未实现）：`ModelRequest`/`ToolContext` 加 `signal?: AbortSignal`，provider/工具透传消费；loop 顶部 `signal.throwIfAborted()`；App 每 run 建根 controller、TTY 的 Esc 触发；工具用 `deriveScope` 叠超时。新增 `AgentStatus: 'interrupted'`。
+
 ---
 
-**关联**：[04 ReAct](04-agent-loop-react.md)、[05 Plan-Execute](05-plan-execute-replan.md)（本篇的两种范式）、[08 上下文管理](08-context-management.md)（§3 的压缩）、[11 扩展点](11-extensibility-seams.md)（A–E 口子）、[17 四类收集](17-collection-context-memory-trace-checkpoint.md)（§6 的 checkpoint 数据模型）。
+**关联**：[04 ReAct](04-agent-loop-react.md)、[05 Plan-Execute](05-plan-execute-replan.md)（本篇的两种范式）、[08 上下文管理](08-context-management.md)（§3 的压缩）、[11 扩展点](11-extensibility-seams.md)（A–E 口子；中断 signal 走口子 A/B）、[17 四类收集](17-collection-context-memory-trace-checkpoint.md)（§6 的 checkpoint 数据模型）。
 
 ## 延伸阅读
 - 📄 [Anthropic《Building Effective Agents》](https://www.anthropic.com/engineering/building-effective-agents) —— 工作流 vs Agent、何时该用编排、"先求简单"。

@@ -64,9 +64,9 @@ export function createKimiProvider(): Provider {
   });
 }
 
-// ── 内部统一格式 → OpenAI ─────────────────────────────────────
+// ── 内部统一格式 → OpenAI（toOpenAIMessage / parseArgs 导出供单测）──
 
-function toOpenAIMessage(m: Message): ChatCompletionMessageParam {
+export function toOpenAIMessage(m: Message): ChatCompletionMessageParam {
   if (m.role === 'tool') {
     return { role: 'tool', tool_call_id: m.toolCallId ?? '', content: m.content };
   }
@@ -109,7 +109,7 @@ function toUnifiedToolCall(c: {
   };
 }
 
-function parseArgs(s: string): Record<string, unknown> {
+export function parseArgs(s: string): Record<string, unknown> {
   try {
     return s ? (JSON.parse(s) as Record<string, unknown>) : {};
   } catch {

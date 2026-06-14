@@ -1,0 +1,18 @@
+# agent-cook 配置示例
+# 复制为 ./agent-cook.toml（项目级）或 ~/.agent-cook/config.toml（用户级）。
+# 优先级（后者覆盖前者）：内置默认 < 用户级 < 项目级 < 环境变量 < CLI 参数(--provider/--model)
+
+provider = "ollama"          # 默认 provider：ollama | kimi
+max_steps = 12
+data_dir = ".agent-cook"
+
+[providers.ollama]
+model = "llama3.1"
+base_url = "http://localhost:11434"
+
+[providers.kimi]
+model = "kimi-k2.5"
+base_url = "https://api.moonshot.ai/v1"
+# ⚠️ 真实密钥【绝不写在这里】，只写环境变量名；key 放使用者自己的系统环境变量：
+#     export MOONSHOT_API_KEY=sk-xxxx
+env_key = "MOONSHOT_API_KEY"

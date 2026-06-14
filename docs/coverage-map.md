@@ -48,7 +48,7 @@
 
 | 缺口 | 在哪些实现里有 | 性质 | 建议 |
 |---|---|---|---|
-| **中断 / 打断重定向**（interrupt / steer，运行中打断模型或工具） | Codex（可中断）、Hermes（interrupt-and-redirect） | 运行时 / UX，**不是自动纠错** | 值得作为 Phase 1 一项（口子 A 的 AbortController + TTY 的 Esc） |
+| **中断 / 打断重定向**（interrupt / steer，运行中打断模型或工具） | Codex（可中断）、Hermes（interrupt-and-redirect） | 运行时 / UX，**不是自动纠错** | 概念已记入 [16 §7](knowledge/16-runtime-layering-and-loop.md)（三对象 + Controller/Signal + AbortSignal 组合）；实现待定，建议 Phase 1 |
 | **斜杠 / 元命令**（/model、/clear、history、doctor、profiles） | Claude Code、Codex、Hermes 都有 | 功能 / UX 层 | 锦上添花，非核心概念 |
 | **OS 级沙箱 + 审批档**（Seatbelt/Landlock、workspace-write/danger-full-access、多执行后端） | Codex、Hermes 强 | 10 篇较浅 | 做工具安全(roadmap E2)时深化 |
 | **程序化工具调用 / code mode**（模型写代码批量调工具，省多轮往返） | Hermes（execute_code） | 新兴编排手法 | 可作为编排进阶，了解即可 |

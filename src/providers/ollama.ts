@@ -6,17 +6,19 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import ollama from 'ollama';
+import ollama, { Ollama } from 'ollama';
 
 import type { Message, ModelResponse, ToolCall, ToolSchema } from '@/types.js';
 
 import type { Provider, ProviderChatRequest } from './provider.js';
 import type { Message as OllamaMessage, Tool as OllamaTool } from 'ollama';
 
-export function createOllamaProvider(): Provider {
+/** host 来自 config.baseURL；不传则用 ollama 默认客户端（OLLAMA_HOST / localhost:11434）。 */
+export function createOllamaProvider(opts: { host?: string } = {}): Provider {
+  const client = opts.host ? new Ollama({ host: opts.host }) : ollama;
   return {
     async chat(req: ProviderChatRequest): Promise<ModelResponse> {
-      const res = await ollama.chat({
+      const res = await client.chat({
         model: req.model,
         messages: req.messages.map(toOllamaMessage),
         tools: req.tools?.map(toOllamaTool),
@@ -38,9 +40,9 @@ export function createOllamaProvider(): Provider {
   };
 }
 
-// ── 内部统一格式 → ollama ─────────────────────────────────────
+// ── 内部统一格式 → ollama（导出供单测）─────────────────────────
 
-function toOllamaMessage(m: Message): OllamaMessage {
+export function toOllamaMessage(m: Message): OllamaMessage {
   return {
     role: m.role,
     content: m.content,
@@ -69,7 +71,7 @@ function toOllamaTool(schema: ToolSchema): OllamaTool {
 
 // ── ollama → 内部统一格式 ─────────────────────────────────────
 
-function toUnifiedToolCall(tc: {
+export function toUnifiedToolCall(tc: {
   function: { name: string; arguments: Record<string, unknown> };
 }): ToolCall {
   return {

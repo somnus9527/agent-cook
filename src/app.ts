@@ -16,7 +16,7 @@ import { createTraceSink } from '@collection/traceSink.js';
 import type { Frontend } from '@io/frontend.js';
 import { createLoopManager } from '@loop/manager.js';
 import { createOllamaProvider } from '@providers/ollama.js';
-import { createKimiProvider } from '@providers/openaiCompatible.js';
+import { createOpenAICompatProvider } from '@providers/openaiCompatible.js';
 import { makeBuildContext } from '@seams/buildContext.js';
 import { makeCallModel } from '@seams/callModel.js';
 import { makeDispatchTool } from '@seams/dispatchTool.js';
@@ -39,8 +39,11 @@ export function createApp(opts: AppOptions) {
   const { config, frontend } = opts;
 
   // ── 装配各模块（可在测试里替换成 mock，11 §口子E）──────────────
-  // 切 provider 只动 config.provider（13 §5）；loop/工具/registry 全不变。
-  const provider = config.provider === 'kimi' ? createKimiProvider() : createOllamaProvider();
+  // 切 provider 只动 config.provider（13 §5）；密钥/端点由 loadConfig 解析好（config.apiKey/baseURL）。
+  const provider =
+    config.provider === 'kimi'
+      ? createOpenAICompatProvider({ baseURL: config.baseURL, apiKey: config.apiKey ?? '' })
+      : createOllamaProvider({ host: config.baseURL });
   const registry = createRegistry(opts.tools ?? []);
   const store = createFileCheckpointStore(config.dataDir);
   const memory = createMemoryStore(config.dataDir);
@@ -48,7 +51,7 @@ export function createApp(opts: AppOptions) {
 
   // ── 组装五个口子成 Deps ──────────────────────────────────────
   const deps: Deps = {
-    callModel: makeCallModel(provider),
+    callModel: makeCallModel(provider, config),
     dispatchTool: makeDispatchTool(registry),
     buildContext: makeBuildContext({ memory }),
     emit: makeEmit(sinks),

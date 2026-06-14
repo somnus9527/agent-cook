@@ -106,4 +106,6 @@ AgentLoop         src/loop/reactLoop.ts               两分支：tool_calls | f
 - 改任何横切能力，先问："它是否要在每次调模型/执行工具处插一脚？" 是 → 改对应口子，别散落（knowledge/11 §4）。
 - 保持 `pnpm typecheck` 绿；新增可注入依赖优先，方便 mock 做评估（knowledge/11 口子E、19）。
 - 文档约定：**概念**进 `docs/knowledge/`，**优化路线**进 `docs/roadmap/`，**参考片段**进 `docs/examples/`，源码在 `src/`。查漏用 [`docs/coverage-map.md`](docs/coverage-map.md)（对照 Claude Code/Codex/Hermes + 权威文章的覆盖图，**对外部参照系查、别只对自己提纲查**）。
-- 运行：本地 `ollama serve` + `pnpm dev`；云端 `AGENT_PROVIDER=kimi MOONSHOT_API_KEY=... pnpm dev`。
+- 运行（dev）：本地 `ollama serve` + `pnpm dev`；云端 `pnpm dev --provider kimi`（key 放系统环境变量 `MOONSHOT_API_KEY`）。
+- 打包/分发：`pnpm build`（rollup → `dist/index.js`，node shebang，deps external）→ `pnpm start` 跑产物，或 `pnpm link --global` 后直接 `agent-cook`。
+- 配置：`agent-cook.toml`（用户级 `~/.agent-cook/` 或项目级 `./`，见 `agent-cook.toml.example`）。优先级：默认 < 用户级 < 项目级 < 环境变量 < CLI(`--provider/--model`)。**密钥纪律**：toml 只写 `env_key`（环境变量名），真实 key 在使用者系统环境变量里，仓库/配置永不碰真 key。
